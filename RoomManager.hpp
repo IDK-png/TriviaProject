@@ -1,7 +1,7 @@
 ﻿#ifndef ROOMMANAGER_HPP
 #define ROOMMANAGER_HPP
 #include "DatabaseAccess.h"
-
+#include "ServerCommunicator.hpp"
 class User
 {
 public:
@@ -17,12 +17,18 @@ class Room
 {
 public:
 	Room(int id, std::string name, int max, int time);
+	Room(const Room&);
 	std::string GetName();
 	int GetID();
 	bool GetState();
+	int GetCount();
+	int CurrentUsersCount();
+	int GetTime();
 	std::string GetValueForDatabase();
 	std::string GetUsers();
-	
+	void StartGame();
+	void UserAdd(User*);
+	void RemoveUser(User*);
 private:
 	int ID; // Room Number
 	std::string NAME; // Room Name
@@ -36,10 +42,16 @@ private:
 class RoomManager
 {
 public:
+    RoomManager();
 	Room createRoom(int id, std::string name, int max, int time);
 	void deleteRoom(int ID);
+	void UpdateRoomsList(std::vector<Room*>);
 	bool getRoomState(std::string Name);
+	Room GetRoom(int id);
+	bool AddUserToRoom(int id, User userToAdd);
+	void updateRoom(Room*);
 	std::vector<Room*> getRooms();
+	void startGame(int ID);
 private:
 	std::vector<Room*> RoomsList;
 };
@@ -53,7 +65,6 @@ inline int User::GetID()
 {
 	return ID;
 }
-
 inline std::string User::GetName()
 {
 	return NAME;
@@ -61,7 +72,35 @@ inline std::string User::GetName()
 
 inline Room::Room(int id, std::string name, int max, int time) : ID(id), NAME(name), MAXCOUNT(max), TIME(time), ACTIVE(true), STATE(false)
 {
+}
 
+inline void Room::UserAdd(User* usr)
+{
+	UserList.push_back(usr);
+}
+
+inline void Room::RemoveUser(User* x)
+{
+	int iter = 0;
+	for (auto i : UserList)
+	{
+		if (i->GetID() == x->GetID())
+		{
+			UserList.erase(UserList.begin() + iter);
+		}
+		iter++;
+	}
+}
+
+inline Room::Room(const Room& room)
+{
+	ID = room.ID;
+	NAME = room.NAME;
+	MAXCOUNT = room.MAXCOUNT;
+	TIME = room.TIME;
+	ACTIVE = room.ACTIVE;
+	STATE = room.STATE;
+	UserList = room.UserList;
 }
 
 inline std::string Room::GetName()
@@ -69,9 +108,29 @@ inline std::string Room::GetName()
 	return NAME;
 }
 
+inline int Room::GetCount()
+{
+	return MAXCOUNT;
+}
+
+inline int Room::CurrentUsersCount()
+{
+	int i = 1;
+	for (auto x : UserList)
+	{
+		i++;
+	}
+	return i;
+}
+
 inline bool Room::GetState()
 {
 	return STATE;
+}
+
+inline int Room::GetTime()
+{
+	return TIME;
 }
 
 inline int Room::GetID()
@@ -86,6 +145,52 @@ inline std::string Room::GetUsers()
 		returnString += i->GetName() + ",";
 	}
 	return returnString;
+}
+
+inline void Room::StartGame()
+{
+	this->STATE = 1;
+}
+
+inline RoomManager::RoomManager() : RoomsList()
+{
+
+}
+
+inline Room RoomManager::GetRoom(int id)
+{
+	for (auto i : RoomsList)
+	{
+		if (i->GetID() == id)
+			return *i;
+	}
+}
+
+inline void RoomManager::UpdateRoomsList(std::vector<Room*> x)
+{
+	RoomsList = x;
+	std::cout << "HERE, Size: " << RoomsList.size() << std::endl;
+	for (Room* a : RoomsList)
+	{
+		std::cout << a->GetName() << std::endl;
+	}
+}
+
+inline bool RoomManager::AddUserToRoom(int id, User userToAdd)
+{
+	for (Room* i : RoomsList)
+	{
+		if (i->GetID() == id)
+		{
+			if (i->CurrentUsersCount() <= i->GetCount())
+			{
+				User* addUser = new User(userToAdd.GetName(), userToAdd.GetID());
+				i->UserAdd(addUser);
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 inline std::string Room::GetValueForDatabase()
@@ -107,6 +212,7 @@ inline bool RoomManager::getRoomState(std::string Name)
 	{
 		if (i->GetName().compare(Name))
 		{
+			std::cout << "Names: " << i->GetUsers() << std::endl;
 			return i->GetState();
 		}
 	}
@@ -121,11 +227,40 @@ inline void RoomManager::deleteRoom(int ID)
 		if (i->GetID() == ID)
 		{
 			RoomsList.erase(RoomsList.begin()+iterator);
-			return; // Проверь если не синвалидил 
+			return; // Проверь если не с инвалидил 
 		}
 		iterator++;
 	}
 }
+
+inline void RoomManager::updateRoom(Room* room)
+{
+	int iterator = 0;
+	for (auto i : RoomsList)
+	{
+		if (i->GetID() == room->GetID() && i->GetName() == room->GetName())
+		{
+			RoomsList[iterator] = room;
+			return; // Проверь если не с инвалидил 
+		}
+		iterator++;
+	}
+}
+
+inline void RoomManager::startGame(int ID) // Room(int id, std::string name, int max, int time);
+{
+	int iterator = 0;
+	for (auto i : RoomsList)
+	{
+		if (i->GetID() == ID)
+		{
+			i->StartGame();
+			return; // Проверь если не с инвалидил 
+		}
+		iterator++;
+	}
+}
+
 
 inline std::vector<Room*> RoomManager::getRooms()
 {

@@ -15,10 +15,11 @@ public:
 	int IdCheck(std::string TABLE, int start);
 	int getIndexByName(std::string TABLE, std::string NAME);
 	std::string getNameByIndex(std::string TABLE, std::string ID);
-
+	std::vector<Room*> GetRooms();
+	bool CheckLogin(std::string NAME, std::string PASSWORD);
 	User CreateUSER(std::string NAME, std::string PASSWORD);
 	void CreateROOM(Room room);
-
+	void AddUser(int, std::string);
 
 
 	bool open();

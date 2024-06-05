@@ -20,6 +20,34 @@ void DatabaseAccess::sendToSql(const std::string command)
 
 }
 
+std::vector<Room*> DatabaseAccess::GetRooms()
+{
+	sqlite3_stmt* stmt;
+	// Открываем базу данных
+	int rc;
+	const char* sql = "SELECT ID, NAME, MAXCOUNT, TIME, ACTIVE, USER_LIST FROM ROOMS;";
+	std::vector<Room*> RoomsList; 
+	// Подготавливаем SQL-запрос
+	rc = sqlite3_prepare_v2(DB, sql, -1, &stmt, NULL);
+
+	// Выполняем запрос и получаем результаты
+	//Room(int id, std::string name, int max, int time) 
+	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+		int id = sqlite3_column_int(stmt, 0); 
+		std::string name = std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1))); 
+		int max = sqlite3_column_int(stmt, 2);
+		int time = sqlite3_column_int(stmt, 3);
+		Room* Curr = new Room(id, name, max, time);
+		//bool active = sqlite3_column_int(stmt, 4) != 0;
+		//std::string users = std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5)));
+		RoomsList.push_back(Curr);
+		// Выводим значения
+		std::cout << "ID: " << Curr->GetID() << ", Name: " << Curr->GetName() <<  std::endl;
+	}
+
+	return RoomsList;
+}
+
 /*
 Brief : sends command line to SQLite3 interface and returns the response of the SQLite3 interface
 Example of [const std::string command] : "SELECT ID FROM ALBUMS WHERE NAME=\"TEST\""
@@ -101,6 +129,26 @@ std::string DatabaseAccess::getNameByIndex(std::string TABLE, std::string ID)
 	}
 }
 
+/*
+Brief : Returns if the given login information is correct
+Example of [std::string NAME][std::string PASSWORD] : "User1", "1337"
+Example of return : True
+*/
+bool DatabaseAccess::CheckLogin(std::string NAME, std::string PASSWORD)
+{
+	std::string query = "SELECT * FROM USERS WHERE NAME = '" + NAME + "' AND PASSWORD = '" + PASSWORD + "'";
+	if (getFromSql(query).length() > 2)
+	{
+		return true;
+	}
+	return false;
+}
+
+/*
+Brief : Creates new user in database and returns the user as User object
+Example of [std::string NAME][std::string PASSWORD] : "User1", "1337"
+Example of return : User("User1","1337)
+*/
 User DatabaseAccess::CreateUSER(std::string NAME, std::string PASSWORD)
 {
 	User Client = User(NAME, IdCheck("USERS", 0));
@@ -110,10 +158,23 @@ User DatabaseAccess::CreateUSER(std::string NAME, std::string PASSWORD)
 	return Client;
 }
 
+/*
+Brief : Creates new room in database
+Example of [Room room] : {Some Room Object}
+Example of return : NULL
+*/
 void DatabaseAccess::CreateROOM(Room room)
 {
-	std::string ALBUMSquery = "INSERT INTO USERS (ID, NAME, MAXCOUNT, TIME, ACTIVE, USER_LIST) VALUES (" + room.GetValueForDatabase() + ");";
-	sendToSql(ALBUMSquery);
+	std::string RoomsQuery = "INSERT INTO ROOMS (ID, NAME, MAXCOUNT, TIME, ACTIVE, USER_LIST) VALUES (" + room.GetValueForDatabase() + ");";
+	sendToSql(RoomsQuery);
+}
+
+void DatabaseAccess::AddUser(int id, std::string user)
+{
+	std::string CurrentUsers = '"' + getFromSql("SELECT USER_LIST FROM ROOMS WHERE ID=" + std::to_string(id) + ";") + user + ',' + '"';
+	std::string RoomsQuery = "UPDATE ROOMS SET USER_LIST=" + CurrentUsers + " WHERE ID =" + std::to_string(id) + ";";
+	std::cout << RoomsQuery << std::endl;
+	sendToSql(RoomsQuery);
 }
 
 /*
