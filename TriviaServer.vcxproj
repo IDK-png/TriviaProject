@@ -19,7 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Creators.h" />
     <ClInclude Include="DatabaseAccess.h" />
+    <ClInclude Include="Products.h" />
+    <ClInclude Include="RequestHandlerFactory.h" />
     <ClInclude Include="RoomManager.hpp" />
     <ClInclude Include="ServerCommunicator.hpp" />
     <ClInclude Include="ServerJSON.hpp" />
@@ -31,9 +34,11 @@
     <ClInclude Include="WSAInitializer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Creators.cpp" />
     <ClCompile Include="DatabaseAccess.cpp" />
-    <ClCompile Include="Helper.cpp" />
+    <ClCompile Include="Products.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="RequestHandlerFactory.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="sqlite3\sqlite3.c" />
     <ClCompile Include="WSAInitializer.cpp" />

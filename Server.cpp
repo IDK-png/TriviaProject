@@ -1,16 +1,10 @@
 ﻿#include "Server.h"
-#include "Helper.h"
-#include <exception>
-#include <iostream>
-#include <string>
-#include <thread>
-#include <mutex>
-#include <fstream>
 
 #define STRING_SIZE 264
 std::mutex mtx;
-DatabaseAccess SQL("trivia.db");
-RoomManager Rooms = RoomManager();
+DatabaseAccess* SQL = new DatabaseAccess("trivia.db");
+RoomManager* Rooms = new RoomManager();
+
 Server::Server()
 {
 
@@ -35,7 +29,6 @@ Server::~Server()
 
 void Server::serve(int port)
 {
-	
 	struct sockaddr_in sa = { 0 };
 	
 	sa.sin_port = htons(port); // port that server will listen for
@@ -50,9 +43,10 @@ void Server::serve(int port)
 	if (listen(_serverSocket, SOMAXCONN) == SOCKET_ERROR)
 		throw std::exception(__FUNCTION__ " - listen");
 	std::cout << "Opening db...\n" << port << std::endl;
-	if (SQL.open())
+	if (SQL->open())
 	{
-		Rooms.UpdateRoomsList(SQL.GetRooms());
+		Rooms->UpdateRoomsList(SQL->GetRooms());
+		DataManage::getInstance(SQL,Rooms);
 		while (true)
 		{
 			// the main thread is only accepting clients 
@@ -101,7 +95,7 @@ void Server::clientHandler(SOCKET clientSocket)
 
 			if (readySockets == 0)
 			{
-				std::thread x(&Server::LoginRequestHandler, this, clientSocket);
+				std::thread x(&Server::LoginManager, this, clientSocket);
 				x.join();
 			}
 			else
@@ -115,13 +109,15 @@ void Server::clientHandler(SOCKET clientSocket)
 	{
 		closesocket(clientSocket);
 	}
-	SQL.close();
+	SQL->close();
+	delete SQL;
+	delete Rooms;
 }
 
 /*-----------------------------------------------------------------------------------------------------------------------
 * METHODS AND HANDLERS
 * Handlers Chain:
-LoginRequestHandler --> (if user exists) 	 -->					  --> MenuRequestHandler --> createMenuRequestHandler
+LoginManager --> (if user exists) 	 -->					  --> MenuManager --> createMenuManager
 					--> (if user not exists) --> SignUpRequestHandler
 -----------------------------------------------------------------------------------------------------------------------*/
 bool Server::socketStillConnected(SOCKET socket_fd) // Checks if the socket connection is still valid
@@ -137,37 +133,24 @@ bool Server::socketStillConnected(SOCKET socket_fd) // Checks if the socket conn
 }
 
 // Handler that makes the login proccess for user  
-void Server::LoginRequestHandler(SOCKET clientSocket)
+void Server::LoginManager(SOCKET clientSocket)
 {
+	HandlerFactory* LoginHandler = new LoginRequestHandlerCreator();
 	try
 	{
 		while(socketStillConnected(clientSocket))
 		{ 
-			std::string message = ServerCommunicator::GetString(clientSocket);
-			std::cout << message << std::endl;
-			JsonRequestPacketDeserializer msg(message);
-			json json_msg = msg.Deserializer(); // MFOCHKA|4444
-			if (JSONMethods::CheckProtocol(json_msg))
+			std::string request = ServerCommunicator::GetString(clientSocket);
+			JsonRequestPacketDeserializer requestJson(request);
+			json request_json = requestJson.Deserializer();
+			std::string response = LoginHandler->FactoryMethod()->RequestResult(request_json,-1,-1);
+			ServerCommunicator::SendString(clientSocket, response);
+			JsonRequestPacketDeserializer responseJson(response);
+			json response_json = responseJson.Deserializer();
+			if (response_json["status"] == 112 || response_json["status"] == 111)
 			{
-				std::cout << "secondMessage: " << socketStillConnected(clientSocket) << std::endl;
-				if (json_msg["status"] == 101)
-				{
-					std::vector<std::string> arg = splitFunc(json_msg["argument"], "|");
-					std::cout << arg[0] + arg[1] << std::endl;
-					if (SQL.CheckLogin(arg[0], arg[1]))
-					{
-						MenuRequestHandler(clientSocket, User(arg[0], SQL.getIndexByName("USERS", arg[0]))); 
-						break;
-					}
-					else
-					{
-						SignUpRequestHandler(clientSocket, arg[0], arg[1]);
-					}
-				}
-				else
-				{
-					ServerCommunicator::SendString(clientSocket, std::string("Error!\n"));
-				}
+				std::vector<std::string> arg = ServerCommunicator::splitFunc(request_json["argument"], "|");
+				MenuManager(clientSocket, User(arg[0], SQL->getIndexByName("USERS", arg[0])));
 			}
 		}
 		std::cout << "Client Disconnected" << std::endl;
@@ -178,93 +161,25 @@ void Server::LoginRequestHandler(SOCKET clientSocket)
 	}
 }
 
-// Handler that makes the signup proccess for user  
-void Server::SignUpRequestHandler(SOCKET clientSocket, std::string NAME, std::string PASSWORD)
+void Server::MenuManager(SOCKET clientSocket, User client)
 {
-	ServerCommunicator::SendString(clientSocket, "{\"status\": 141, \"argument\": \"No User Found\"}");
-	while (socketStillConnected(clientSocket))
-	{
-		try {
-			std::string secondMessage = ServerCommunicator::GetString(clientSocket);
-			std::cout << secondMessage << std::endl;
-			JsonRequestPacketDeserializer secMsg(secondMessage);
-			json json_msgg = secMsg.Deserializer();
-			if (json_msgg["status"] == 102)
-			{
-				MenuRequestHandler(clientSocket, SQL.CreateUSER(NAME, PASSWORD));
-				break;
-			}
-			else
-			{
-				ServerCommunicator::SendString(clientSocket, "{\"status\": 144, \"argument\": \"Bad Request!\"}");
-			}
-		}
-		catch (const std::exception x)
-		{
-
-		}
-	}
-	std::cout << "Client Disconnected" << std::endl;
-}
-
-void Server::MenuRequestHandler(SOCKET clientSocket, User client)
-{
-	ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 111, \"argument\": \"User Logined\"}"));
+	HandlerFactory* MenuHandler = new MenuRequestHandlerCreator();
 	try
 	{
 		while (socketStillConnected(clientSocket))
 		{
-			std::string message = ServerCommunicator::GetString(clientSocket);
-			JsonRequestPacketDeserializer msg(message);
-			json json_msg = msg.Deserializer();
-			if (JSONMethods::CheckProtocol(json_msg))
+			std::string request = ServerCommunicator::GetString(clientSocket);
+			JsonRequestPacketDeserializer requestJson(request);
+			json request_json = requestJson.Deserializer();
+			std::string response = MenuHandler->FactoryMethod()->RequestResult(request_json,client.GetID(),-1);
+			ServerCommunicator::SendString(clientSocket, response);
+			JsonRequestPacketDeserializer responseJson(response);
+			json response_json = responseJson.Deserializer();
+			if (response_json["status"] == 333 || response_json["status"] == 334)
 			{
-				if (json_msg["status"] == 201) // If User Creates Room
-				{
-					std::vector<std::string> secondMessage = splitFunc(json_msg["argument"], "|"); // Splits message
-					try
-					{
-						Room newCreatedRoom = Rooms.createRoom(SQL.IdCheck("ROOMS", 0), secondMessage[0], stoi(secondMessage[1]), stoi(secondMessage[2]));
-						User* userToRoom = new User(client.GetName(), client.GetID());
-						newCreatedRoom.UserAdd(userToRoom);
-						SQL.CreateROOM(newCreatedRoom);
-						ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 333, \"argument\": \"Room Created!\"}"));
-						createMenuRequestHandler(clientSocket, client, newCreatedRoom);
-					}
-					catch (const std::exception& e)
-					{
-						ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 314, \"argument\": \"Not Correct Info!\"}"));
-					}
-				}
-				if (json_msg["status"] == 211) // If User Joins Room
-				{
-					std::vector<std::string> secondMessage = splitFunc(json_msg["argument"], "|"); // Splits message
-					try
-					{
-						Room FoundRoom = Rooms.GetRoom(stoi(secondMessage[1])); // Find Room The User Want To Join
-						if (FoundRoom.GetName() == secondMessage[0])
-						{
-							if (Rooms.AddUserToRoom(stoi(secondMessage[1]), client))
-							{
-								SQL.AddUser(stoi(secondMessage[1]), client.GetName());
-								ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 334, \"argument\": \"Joined To Room!\"}"));
-								createMenuRequestHandler(clientSocket, client, FoundRoom);
-							}
-							else
-							{
-								ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 314, \"argument\": \"Room Is Full!\"}"));
-							}
-						}
-						else
-						{
-							ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 314, \"argument\": \"Not Correct Info!\"}"));
-						}
-					}
-					catch (const std::exception& e)
-					{
-						ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 314, \"argument\": \"Not Correct Info!\"}"));
-					}
-				}
+				std::vector<std::string> arg = ServerCommunicator::splitFunc(request_json["argument"], "|");
+				Room f = Rooms->GetRoom(SQL->getIndexByName("ROOMS", arg[0]));
+				createMenuManager(clientSocket, client, Rooms->GetRoom(SQL->getIndexByName("ROOMS",arg[0])));
 			}
 		}
 		std::cout << "Client Disconnected" << std::endl;
@@ -276,32 +191,69 @@ void Server::MenuRequestHandler(SOCKET clientSocket, User client)
 	}
 }
 
-void Server::createMenuRequestHandler(SOCKET clientSocket, User Admin, Room CreatedRoom)
+void Server::RoomStatusSender(SOCKET clientSocket, Room CreatedRoom, std::atomic<bool>* Flag)
 {
-	std::string currentUsers = Rooms.GetRoom(CreatedRoom.GetID()).GetUsers();
+	std::string currentUsers = Rooms->GetRoom(CreatedRoom.GetID()).GetUsers();
 	std::string roomInfo = CreatedRoom.GetName() + "|" + std::to_string(CreatedRoom.GetID()) + "|" + currentUsers;
-	ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 335, \"argument\": \"Status Update!|" + roomInfo +  "\"}"));
-	//std::cout << std::string("{\"status\": 334, \"argument\": \"Joined Room!|" + roomInfo + "\"}") << std::endl;
+	ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 335, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
+	while (Flag->load())
+	{
+		Room UpdatedRoom = Rooms->GetRoom(CreatedRoom.GetID());
+		if (UpdatedRoom.GetID() != -1)
+		{
+			std::string UpdatedListOfUsers = UpdatedRoom.GetUsers();
+			UpdatedListOfUsers.erase(std::remove(UpdatedListOfUsers.begin(), UpdatedListOfUsers.end(), '\n'), UpdatedListOfUsers.cend());
+			if (currentUsers != UpdatedListOfUsers)
+			{
+				std::cout << currentUsers << "|past<->current|" << UpdatedListOfUsers << std::endl;
+				std::string roomInfo = UpdatedRoom.GetName() + "|" + std::to_string(UpdatedRoom.GetID()) + "|" + UpdatedListOfUsers;
+				ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 335, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
+				currentUsers = UpdatedListOfUsers;
+			}
+			if (UpdatedRoom.CurrentUsersCount() == UpdatedRoom.GetCount())
+			{
+				// go to yo shi
+			}
+			if (UpdatedRoom.GetState())
+			{
+
+			}
+		}
+		else
+		{
+			Flag->store(false); // Stop Sending Status
+			ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 355, \"argument\": \"Room Closed!\"}"));
+		}
+	}
+}
+
+void Server::createMenuManager(SOCKET clientSocket, User client, Room CreatedRoom)
+{
+	std::atomic<bool> keepSendStatus(true);
+	std::future<void> StatusSending = std::async(std::launch::async, &Server::RoomStatusSender, this, clientSocket, CreatedRoom, &keepSendStatus);
+	HandlerFactory* createMenuHandler = new CreateMenuRequestHandlerCreator();
 	try
 	{
 		while (socketStillConnected(clientSocket))
 		{
-			std::string message = ServerCommunicator::GetString(clientSocket);
-			Room UpdatedRoom = Rooms.GetRoom(CreatedRoom.GetID());
-			std::string UpdatedListOfUsers = UpdatedRoom.GetUsers();
-			if (currentUsers != UpdatedListOfUsers)
-			{
-				std::string roomInfo = UpdatedRoom.GetName() + "|" + std::to_string(UpdatedRoom.GetID()) + "|" + UpdatedListOfUsers;
-				std::cout << std::string("{\"status\": 335, \"argument\": \"Status Update!|" + roomInfo + "\"}") << std::endl;
-				currentUsers = UpdatedListOfUsers;
-			}
+			std::string request = ServerCommunicator::GetString(clientSocket);
+			JsonRequestPacketDeserializer requestJson(request);
+			json request_json = requestJson.Deserializer();
+			std::string response = createMenuHandler->FactoryMethod()->RequestResult(request_json, client.GetID(), CreatedRoom.GetID());
+			ServerCommunicator::SendString(clientSocket, response);
+			//JsonRequestPacketDeserializer responseJson(response);
+			//json response_json = responseJson.Deserializer();
+			//if (response_json["status"] == 333 || response_json["status"] == 334)
+			//{
+			//	std::vector<std::string> arg = ServerCommunicator::splitFunc(request_json["argument"], "|");
+			//	Room f = Rooms->GetRoom(SQL->getIndexByName("ROOMS", arg[0]));
+			//	createMenuManager(clientSocket, client, Rooms->GetRoom(SQL->getIndexByName("ROOMS", arg[0])));
+			//}
 		}
 	}
 	catch (const std::exception& e)
 	{
-		Room UserDisconnected = Rooms.GetRoom(CreatedRoom.GetID());
-		UserDisconnected.RemoveUser(&Admin);
-		Rooms.updateRoom(&UserDisconnected);
+		std::cout << e.what() << std::endl;
 	}
 }
 

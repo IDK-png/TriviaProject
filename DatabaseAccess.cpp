@@ -23,14 +23,11 @@ void DatabaseAccess::sendToSql(const std::string command)
 std::vector<Room*> DatabaseAccess::GetRooms()
 {
 	sqlite3_stmt* stmt;
-	// Открываем базу данных
 	int rc;
 	const char* sql = "SELECT ID, NAME, MAXCOUNT, TIME, ACTIVE, USER_LIST FROM ROOMS;";
 	std::vector<Room*> RoomsList; 
-	// Подготавливаем SQL-запрос
 	rc = sqlite3_prepare_v2(DB, sql, -1, &stmt, NULL);
 
-	// Выполняем запрос и получаем результаты
 	//Room(int id, std::string name, int max, int time) 
 	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
 		int id = sqlite3_column_int(stmt, 0); 
@@ -41,11 +38,14 @@ std::vector<Room*> DatabaseAccess::GetRooms()
 		//bool active = sqlite3_column_int(stmt, 4) != 0;
 		//std::string users = std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5)));
 		RoomsList.push_back(Curr);
-		// Выводим значения
-		std::cout << "ID: " << Curr->GetID() << ", Name: " << Curr->GetName() <<  std::endl;
 	}
 
 	return RoomsList;
+}
+
+User* DatabaseAccess::GetUSER(int id)
+{
+	return new User(getNameByIndex("USERS",std::to_string(id)),id);
 }
 
 /*
@@ -70,7 +70,6 @@ std::string DatabaseAccess::getFromSql(const std::string command)
 		result += "\n";
 	}
 
-	//std::cout << result << std::endl;
 	sqlite3_finalize(stmt);
 
 	return result;
@@ -169,14 +168,31 @@ void DatabaseAccess::CreateROOM(Room room)
 	sendToSql(RoomsQuery);
 }
 
+/*
+Brief : Adds user to specific room in SQL
+Example of [Room room] : {Some Room Object}
+Example of return : NULL
+*/
 void DatabaseAccess::AddUser(int id, std::string user)
 {
 	std::string CurrentUsers = '"' + getFromSql("SELECT USER_LIST FROM ROOMS WHERE ID=" + std::to_string(id) + ";") + user + ',' + '"';
 	std::string RoomsQuery = "UPDATE ROOMS SET USER_LIST=" + CurrentUsers + " WHERE ID =" + std::to_string(id) + ";";
-	std::cout << RoomsQuery << std::endl;
+	//std::cout << RoomsQuery << std::endl;
 	sendToSql(RoomsQuery);
 }
 
+void DatabaseAccess::DeleteUser(Room ROOM, std::string user)
+{
+	//std::string CurrentUsers = 
+	//std::string RoomsQuery = "UPDATE ROOMS SET USER_LIST=" + CurrentUsers + " WHERE ID =" + std::to_string(id) + ";";
+	////std::cout << RoomsQuery << std::endl;
+	//sendToSql(RoomsQuery);
+}
+void DatabaseAccess::DeleteROOM(Room room)
+{
+	std::string RoomsQuery = "DELETE FROM ROOMS WHERE ID=" + std::to_string(room.GetID()) + ";";
+	sendToSql(RoomsQuery);
+}
 /*
 Brief : Opens database
 Example of [no arguments] : NULL

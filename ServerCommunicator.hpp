@@ -2,6 +2,7 @@
 #define SERVERCOM_HPP
 #include "Server.h"
 #include "ServerJSON.hpp"
+
 class ServerCommunicator
 {
 public:
@@ -18,7 +19,7 @@ Brief : Returns splited text by delimiter in vector
 Example of [std::string Text][std::string delimiter] : "TEST TEXT", " "
 Example of return : std::vector<std::string>{"TEST", "TEXT"}
 */
-inline std::vector<std::string> splitFunc(std::string Text, std::string delimiter)
+inline std::vector<std::string> ServerCommunicator::splitFunc(std::string Text, std::string delimiter)
 {
 	std::vector<std::string> tokens;
 

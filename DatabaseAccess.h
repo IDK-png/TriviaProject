@@ -16,9 +16,13 @@ public:
 	int getIndexByName(std::string TABLE, std::string NAME);
 	std::string getNameByIndex(std::string TABLE, std::string ID);
 	std::vector<Room*> GetRooms();
+	User* GetUSER(int id);
 	bool CheckLogin(std::string NAME, std::string PASSWORD);
 	User CreateUSER(std::string NAME, std::string PASSWORD);
 	void CreateROOM(Room room);
+	void DeleteUser(Room, std::string);
+	void DeleteROOM(Room room);
+	//void DeleteROOM(Room room);
 	void AddUser(int, std::string);
 
 

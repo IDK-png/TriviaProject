@@ -27,6 +27,7 @@ public:
 	std::string GetValueForDatabase();
 	std::string GetUsers();
 	void StartGame();
+	int GetAdminID();
 	void UserAdd(User*);
 	void RemoveUser(User*);
 private:
@@ -48,7 +49,8 @@ public:
 	void UpdateRoomsList(std::vector<Room*>);
 	bool getRoomState(std::string Name);
 	Room GetRoom(int id);
-	bool AddUserToRoom(int id, User userToAdd);
+	bool AddUserToRoom(int id, User userToAdd); 
+	bool RemoveUserFromRoom(int id, User userToRemove);
 	void updateRoom(Room*);
 	std::vector<Room*> getRooms();
 	void startGame(int ID);
@@ -90,6 +92,11 @@ inline void Room::RemoveUser(User* x)
 		}
 		iter++;
 	}
+}
+
+inline int Room::GetAdminID()
+{
+	return UserList[0]->GetID();
 }
 
 inline Room::Room(const Room& room)
@@ -164,6 +171,7 @@ inline Room RoomManager::GetRoom(int id)
 		if (i->GetID() == id)
 			return *i;
 	}
+	return Room(-1,"none",-1,-1); //Room(int id, std::string name, int max, int time);
 }
 
 inline void RoomManager::UpdateRoomsList(std::vector<Room*> x)
@@ -193,6 +201,19 @@ inline bool RoomManager::AddUserToRoom(int id, User userToAdd)
 	return false;
 }
 
+inline bool RoomManager::RemoveUserFromRoom(int id, User userToRemove)
+{
+	for (Room* i : RoomsList)
+	{
+		if (i->GetID() == id)
+		{
+			i->RemoveUser(&userToRemove);
+			return true;
+		}
+	}
+	return false;
+}
+
 inline std::string Room::GetValueForDatabase()
 {
 	std::string returnString = "" + std::to_string(ID) + ", " + '"' + NAME + '"' + ", " + std::to_string(MAXCOUNT) + ", " + std::to_string(TIME) + ", " + std::to_string(ACTIVE) + ", " + '"' + GetUsers() + '"';
@@ -201,9 +222,9 @@ inline std::string Room::GetValueForDatabase()
 
 inline Room RoomManager::createRoom(int id, std::string name, int max, int time)
 {
-	Room newRoom = Room(id, name, max, time);
-	RoomsList.push_back(&newRoom);
-	return newRoom;
+	Room* newRoom = new Room(id, name, max, time);
+	RoomsList.push_back(newRoom);
+	return *newRoom;
 }
 
 inline bool RoomManager::getRoomState(std::string Name)
@@ -212,7 +233,7 @@ inline bool RoomManager::getRoomState(std::string Name)
 	{
 		if (i->GetName().compare(Name))
 		{
-			std::cout << "Names: " << i->GetUsers() << std::endl;
+			//std::cout << "Names: " << i->GetUsers() << std::endl;
 			return i->GetState();
 		}
 	}
