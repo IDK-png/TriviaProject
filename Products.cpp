@@ -91,7 +91,7 @@ std::string MenuRequestHandler::RequestResult(json Request, int clientID, int ro
 		try
 		{
 			Room FoundRoom = RoomsData->GetRoom(stoi(secondMessage[1])); // Find Room The User Want To Join
-			if (FoundRoom.GetName() == secondMessage[0])
+			if (FoundRoom.GetName() == secondMessage[0] && !FoundRoom.GetState())
 			{
 				if (RoomsData->AddUserToRoom(stoi(secondMessage[1]), *client))
 				{
@@ -141,6 +141,7 @@ std::string CreateMenuRequestHandler::RequestResult(json Request, int clientID, 
 	{
 		if (RoomsData->GetRoom(clientRoom.GetID()).GetAdminID() == client->GetID())
 		{
+			RoomsData->startGame(clientRoom.GetID());
 			return "{\"status\": 400, \"argument\": \"Game Starting!\"}";
 		}
 		else

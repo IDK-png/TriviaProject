@@ -15,16 +15,25 @@ public:
 	int IdCheck(std::string TABLE, int start);
 	int getIndexByName(std::string TABLE, std::string NAME);
 	std::string getNameByIndex(std::string TABLE, std::string ID);
+	//Rooms Managment 
 	std::vector<Room*> GetRooms();
+	void CreateROOM(Room room);
+	void DeleteROOM(Room room);
+	//User Managment
+	void DeleteUser(Room, std::string);
 	User* GetUSER(int id);
 	bool CheckLogin(std::string NAME, std::string PASSWORD);
 	User CreateUSER(std::string NAME, std::string PASSWORD);
-	void CreateROOM(Room room);
-	void DeleteUser(Room, std::string);
-	void DeleteROOM(Room room);
-	//void DeleteROOM(Room room);
 	void AddUser(int, std::string);
-
+	//Question Managment
+	std::vector <std::string> getQuestion(int id);
+	//Game Managment
+	void createGame(Room);
+	void setQuestion(Room, int);
+	bool setTimer(Room);
+	int getTime(Room);
+	int answerCount(Room);
+	int getCurrentQuestionID(Room);
 
 	bool open();
 	void close();

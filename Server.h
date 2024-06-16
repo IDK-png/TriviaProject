@@ -40,9 +40,11 @@ private:
 	/*void SignUpRequestHandler(SOCKET clientSocket, std::string, std::string);*/
 	void createMenuManager(SOCKET, User, Room);
 	void MenuManager(SOCKET, User);
-	//void GameRequestHandler(SOCKET, User, Room);
+	void GameManager(SOCKET, User, Room);
 	static bool socketStillConnected(SOCKET);
 	void RoomStatusSender(SOCKET,Room, std::atomic<bool>*);
+	void GameStatusSender(SOCKET,Room, std::atomic<bool>*);
+	void GameMake(Room);
 	SOCKET _serverSocket;
 	std::map<std::string, SOCKET> USERS;
 };

@@ -122,7 +122,7 @@ inline int Room::GetCount()
 
 inline int Room::CurrentUsersCount()
 {
-	int i = 1;
+	int i = 0;
 	for (auto x : UserList)
 	{
 		i++;

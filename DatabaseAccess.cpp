@@ -181,6 +181,59 @@ void DatabaseAccess::AddUser(int id, std::string user)
 	sendToSql(RoomsQuery);
 }
 
+std::vector<std::string> DatabaseAccess::getQuestion(int id)
+{
+	std::string QuestionQuery = "SELECT QUESTION FROM QUESTIONS WHERE ID = " + std::to_string(id);
+	std::string AnswersQuery = "SELECT ANSWERS FROM QUESTIONS WHERE ID = " + std::to_string(id);
+	std::string RightAnswerNumQuery = "SELECT RIGHT_ANSWER FROM QUESTIONS WHERE ID = " + std::to_string(id);
+	std::vector<std::string> ReturnVector;
+	ReturnVector.push_back(getFromSql(QuestionQuery));
+	ReturnVector.push_back(getFromSql(AnswersQuery));
+	ReturnVector.push_back(getFromSql(RightAnswerNumQuery));
+	return ReturnVector;
+}
+
+void DatabaseAccess::createGame(Room GameRoom)
+{
+	std::string RoomsQuery = "INSERT INTO GAMES (ID, CURRENT_QUESTION_ID, TIME_LEFT, QUESTIONS_ANSWERD, USERS_ANSWERD) VALUES (" + std::to_string(GameRoom.GetID()) + ",0,0,0,0" + ");";
+	sendToSql(RoomsQuery);
+}
+
+void DatabaseAccess::setQuestion(Room GameRoom, int QuestionID)
+{
+	std::string RoomsQuery = "UPDATE GAMES SET CURRENT_QUESTION_ID=" + std::to_string(QuestionID) + " WHERE ID = " + std::to_string(GameRoom.GetID()) + ";";
+	sendToSql(RoomsQuery);
+}
+
+bool DatabaseAccess::setTimer(Room GameRoom)
+{
+	for (int i = GameRoom.GetTime(); i > 0; i--)
+	{
+		std::string TimeQuery = "UPDATE GAMES SET TIME_LEFT=" + std::to_string(i) + " WHERE ID =" + std::to_string(GameRoom.GetID()) + ";";
+		sendToSql(TimeQuery);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
+	return true;
+}
+
+int DatabaseAccess::getTime(Room GameRoom)
+{
+	std::string TimeQuery = "SELECT TIME_LEFT FROM GAMES WHERE ID = " + std::to_string(GameRoom.GetID());
+	return stoi(getFromSql(TimeQuery));
+}
+
+int DatabaseAccess::answerCount(Room GameRoom)
+{
+	std::string answerCountQuery = "SELECT USERS_ANSWERD FROM GAMES WHERE ID = " + std::to_string(GameRoom.GetID());
+	return stoi(getFromSql(answerCountQuery));
+}
+
+int DatabaseAccess::getCurrentQuestionID(Room GameRoom)
+{
+	std::string CurrentQuestionQuery = "SELECT CURRENT_QUESTION_ID FROM GAMES WHERE ID = " + std::to_string(GameRoom.GetID());
+	return stoi(getFromSql(CurrentQuestionQuery));
+}
+
 void DatabaseAccess::DeleteUser(Room ROOM, std::string user)
 {
 	//std::string CurrentUsers = 
@@ -216,6 +269,9 @@ bool DatabaseAccess::open()
 	std::string ROOMSquery = "CREATE TABLE IF NOT EXISTS ROOMS (ID INT PRIMARY KEY NOT NULL, NAME TEXT NOT NULL, MAXCOUNT INT NOT NULL, TIME INT NOT NULL, ACTIVE BOOLEAN, USER_LIST TEXT NOT NULL);";
 	std::string STATSquery = "CREATE TABLE IF NOT EXISTS STATS (ID INT PRIMARY KEY NOT NULL, NAME TEXT NOT NULL, AVG_TIME INT NOT NULL, CORRECT INT NOT NULL, TOTAL INT NOT NULL, GAMES INT NOT NULL);";
 	std::string QUESTIONSquery = "CREATE TABLE IF NOT EXISTS QUESTIONS (ID INT PRIMARY KEY NOT NULL, QUESTION TEXT NOT NULL, ANSWERS TEXT NOT NULL, RIGHT_ANSWER INT NOT NULL);";
+	std::string GAMESquery = "CREATE TABLE IF NOT EXISTS GAMES (ID INT PRIMARY KEY NOT NULL, CURRENT_QUESTION_ID INT NOT NULL, TIME_LEFT INT NOT NULL, QUESTIONS_ANSWERD INT NOT NULL, USERS_ANSWERD INT NOT NULL);";
+	//std::string QUESTIONSaddQuery = "INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('1', 'Which planet is known as the Red Planet?', 'Earth|Venus|Mars|Jupiter', '3'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('2', 'What is the largest mammal in the world?', 'Elephant|Blue Whale|Giraffe|Great White Shark', '2'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('3', 'Who wrote the novel \"1984\"?', 'Aldous Huxley|George Orwell|Ernest Hemingway|F. Scott Fitzgerald', '2'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('4', 'What is the main ingredient in guacamole?', 'Tomato|Avocado|Onion|Pepper', '2'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('5', 'Which element has the atomic number 1?', 'Helium|Oxygen|Hydrogen|Nitrogen', '3'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('6', 'What is the hardest natural substance on Earth?', 'Gold|Iron|Diamond|Quartz', '3'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('7', 'Who developed the theory of relativity?', 'Isaac Newton|Albert Einstein|Galileo Galilei|Nikola Tesla', '2'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('8', 'What is the largest ocean on Earth?', 'Atlantic Ocean|Indian Ocean|Arctic Ocean|Pacific Ocean', '4'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('9', 'Who is known as the Father of Computers?', 'Charles Babbage|Alan Turing|John von Neumann|Steve Jobs', '1'); INSERT INTO \"QUESTIONS\" (\"ID\", \"QUESTION\", \"ANSWERS\", \"RIGHT_ANSWER\") VALUES ('10', 'Which gas do plants absorb from the atmosphere?', 'Oxygen|Carbon Dioxide|Nitrogen|Hydrogen', '2');";
+
 	rc = sqlite3_exec(DB, USERSquery.c_str(), 0, 0, &errMsg);
 	sqlite3_free(errMsg);
 	rc = sqlite3_exec(DB, ROOMSquery.c_str(), 0, 0, &errMsg);
@@ -223,6 +279,10 @@ bool DatabaseAccess::open()
 	rc = sqlite3_exec(DB, STATSquery.c_str(), 0, 0, &errMsg);
 	sqlite3_free(errMsg);
 	rc = sqlite3_exec(DB, QUESTIONSquery.c_str(), 0, 0, &errMsg);
+	sqlite3_free(errMsg);
+	//rc = sqlite3_exec(DB, QUESTIONSaddQuery.c_str(), 0, 0, &errMsg);
+	//sqlite3_free(errMsg);
+	rc = sqlite3_exec(DB, GAMESquery.c_str(), 0, 0, &errMsg);
 	sqlite3_free(errMsg);
 
 	return true;

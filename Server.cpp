@@ -170,6 +170,7 @@ void Server::MenuManager(SOCKET clientSocket, User client)
 		{
 			std::string request = ServerCommunicator::GetString(clientSocket);
 			JsonRequestPacketDeserializer requestJson(request);
+			std::cout << "CreateRoomRequest: " << request << std::endl;
 			json request_json = requestJson.Deserializer();
 			std::string response = MenuHandler->FactoryMethod()->RequestResult(request_json,client.GetID(),-1);
 			ServerCommunicator::SendString(clientSocket, response);
@@ -205,28 +206,29 @@ void Server::RoomStatusSender(SOCKET clientSocket, Room CreatedRoom, std::atomic
 			UpdatedListOfUsers.erase(std::remove(UpdatedListOfUsers.begin(), UpdatedListOfUsers.end(), '\n'), UpdatedListOfUsers.cend());
 			if (currentUsers != UpdatedListOfUsers)
 			{
-				std::cout << currentUsers << "|past<->current|" << UpdatedListOfUsers << std::endl;
 				std::string roomInfo = UpdatedRoom.GetName() + "|" + std::to_string(UpdatedRoom.GetID()) + "|" + UpdatedListOfUsers;
 				ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 335, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
 				currentUsers = UpdatedListOfUsers;
 			}
-			if (UpdatedRoom.CurrentUsersCount() == UpdatedRoom.GetCount())
-			{
-				// go to yo shi
-			}
+			//if (UpdatedRoom.CurrentUsersCount() == UpdatedRoom.GetCount())
+			//{
+			//	std::cout << '"' << UpdatedRoom.GetUsers() << '"' << std::endl;
+			//	ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 403, \"argument\": \"Full Lobby, Game Starting!\"}"));
+			//	Flag->store(false); // Stop Sending Status
+			//}
 			if (UpdatedRoom.GetState())
 			{
-
+				ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 402, \"argument\": \"Admin Started The Game!\"}"));
+				Flag->store(false); // Stop Sending Status
 			}
 		}
 		else
 		{
-			Flag->store(false); // Stop Sending Status
 			ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 355, \"argument\": \"Room Closed!\"}"));
+			Flag->store(false); // Stop Sending Status
 		}
 	}
 }
-
 void Server::createMenuManager(SOCKET clientSocket, User client, Room CreatedRoom)
 {
 	std::atomic<bool> keepSendStatus(true);
@@ -236,19 +238,91 @@ void Server::createMenuManager(SOCKET clientSocket, User client, Room CreatedRoo
 	{
 		while (socketStillConnected(clientSocket))
 		{
+			if (keepSendStatus.load())
+			{
+				std::string request = ServerCommunicator::GetString(clientSocket);
+				JsonRequestPacketDeserializer requestJson(request);
+				json request_json = requestJson.Deserializer();
+				std::string response = createMenuHandler->FactoryMethod()->RequestResult(request_json, client.GetID(), CreatedRoom.GetID());
+				ServerCommunicator::SendString(clientSocket, response);
+				JsonRequestPacketDeserializer responseJson(response);
+				json response_json = responseJson.Deserializer();
+				if (response_json["status"] == 404)
+				{
+					MenuManager(clientSocket, client);
+					break;
+				}
+				if (response_json["status"] == 400)
+				{
+					std::future<void> GameMechanic = std::async(std::launch::async, &Server::GameMake, this, CreatedRoom);
+					GameManager(clientSocket, client, CreatedRoom);
+					break;
+				}
+			}
+			else
+			{
+				Room UpdatedRoom = Rooms->GetRoom(CreatedRoom.GetID());
+				if (UpdatedRoom.GetID() != -1)
+				{
+					GameManager(clientSocket, client, CreatedRoom);
+					break;
+				}
+				else
+				{
+					MenuManager(clientSocket, client);
+					break;
+				}
+			}
+		}
+	}
+	catch (const std::exception& e)
+	{
+		std::cout << e.what() << std::endl;
+	}
+}
+
+
+void Server::GameStatusSender(SOCKET clientSocket, Room GameRoom, std::atomic<bool>* Flag)
+{
+	std::vector<std::string> currentQuestion = SQL->getQuestion(SQL->getCurrentQuestionID(GameRoom));
+	std::string currentTimeLeft = std::to_string(SQL->getTime(GameRoom));
+	std::string roomInfo = currentQuestion[0] + "|" + currentQuestion[1] + "|" + currentTimeLeft;
+	ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 435, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
+	while (Flag->load())
+	{
+		std::vector<std::string> UpdatedQuestion = SQL->getQuestion(SQL->getCurrentQuestionID(GameRoom));
+		std::string UpdatedTimeLeft = std::to_string(SQL->getTime(GameRoom));
+		if (currentTimeLeft != UpdatedTimeLeft)
+		{
+			currentTimeLeft = UpdatedTimeLeft;
+			currentQuestion = UpdatedQuestion;
+			roomInfo = currentQuestion[0] + "|" + currentQuestion[1] + "|" + currentTimeLeft;
+			ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 435, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
+		}
+	}
+}
+
+void Server::GameMake(Room GameRoom)
+{
+	std::cout << "Room \"" + GameRoom.GetName() + "\" Launched Game!" << std::endl;
+	Rooms->startGame(GameRoom.GetID());
+	SQL->createGame(GameRoom);
+	for (int i = 1; i <= 10; i++)
+	{
+		SQL->setQuestion(GameRoom, i);
+		SQL->setTimer(GameRoom);
+	}
+}
+
+void Server::GameManager(SOCKET clientSocket, User client, Room GameRoom)
+{
+	std::atomic<bool> keepSendStatus(true);
+	std::future<void> StatusSending = std::async(std::launch::async, &Server::GameStatusSender, this, clientSocket, GameRoom, &keepSendStatus);
+	try
+	{
+		while (socketStillConnected(clientSocket))
+		{
 			std::string request = ServerCommunicator::GetString(clientSocket);
-			JsonRequestPacketDeserializer requestJson(request);
-			json request_json = requestJson.Deserializer();
-			std::string response = createMenuHandler->FactoryMethod()->RequestResult(request_json, client.GetID(), CreatedRoom.GetID());
-			ServerCommunicator::SendString(clientSocket, response);
-			//JsonRequestPacketDeserializer responseJson(response);
-			//json response_json = responseJson.Deserializer();
-			//if (response_json["status"] == 333 || response_json["status"] == 334)
-			//{
-			//	std::vector<std::string> arg = ServerCommunicator::splitFunc(request_json["argument"], "|");
-			//	Room f = Rooms->GetRoom(SQL->getIndexByName("ROOMS", arg[0]));
-			//	createMenuManager(clientSocket, client, Rooms->GetRoom(SQL->getIndexByName("ROOMS", arg[0])));
-			//}
 		}
 	}
 	catch (const std::exception& e)
