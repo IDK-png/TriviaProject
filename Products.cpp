@@ -30,11 +30,11 @@ std::string LoginRequestHandler::RequestResult(json Request, int clientID, int r
             if (Data->getDatabase()->getIndexByName("USERS", arg[0]) != -1)
             {
                 if (Data->getDatabase()->CheckLogin(arg[0], arg[1]))
-                {
+                { // If the Username And Password correct
                     return "{\"status\": 111, \"argument\": \"User Logined!\"}";
                 }
                 else
-                {
+                { // If the Username in database but password not correct
                     return "{\"status\": 113, \"argument\": \"Wrong Password!\"}";
                 }
             }
@@ -46,12 +46,11 @@ std::string LoginRequestHandler::RequestResult(json Request, int clientID, int r
         if (Request["status"] == 102)
         {
             if (Data->getDatabase()->getIndexByName("USERS", arg[0]) != -1)
-            {
+            {   // If username in database and client trying to create another one 
                 return "{\"status\": 142, \"argument\": \"User Exists Already!\"}";
             }
             else
-            {
-                std::cout << arg[0] + " | " + arg[1] << std::endl;
+            {   // If there is no username in database then create 
                 Data->getDatabase()->CreateUSER(arg[0], arg[1]);
                 return "{\"status\": 112, \"argument\": \"User Created!\"}";
             }
@@ -66,6 +65,12 @@ std::string MenuRequestHandler::RequestResult(json Request, int clientID, int ro
 	RoomManager* RoomsData = Data->getRooms();
 	DatabaseAccess* SQL = Data->getDatabase();
 	User* client = SQL->GetUSER(clientID);
+	if (Request["status"] == 200)
+	{
+		std::vector<int> userStats = SQL->getUserStats(*client);
+		std::string StatsInfo = std::to_string(userStats[0]) + "|" + std::to_string(userStats[1]) + "|" + std::to_string(userStats[2]) + "|" + std::to_string(userStats[3]);
+		return "{\"status\": 177, \"argument\": \"" + StatsInfo + "\"}";
+	}
 	if (Request["status"] == 201) // If User Creates Room
 	{
 		std::vector<std::string> secondMessage = ServerCommunicator::splitFunc(Request["argument"], "|"); // Splits message
@@ -75,8 +80,8 @@ std::string MenuRequestHandler::RequestResult(json Request, int clientID, int ro
 			User* userToRoom = new User(client->GetName(), client->GetID());
 			if (RoomsData->AddUserToRoom(newCreatedRoom.GetID(), *client))
 			{
-				SQL->CreateROOM(newCreatedRoom);
-				SQL->AddUser(newCreatedRoom.GetID(), client->GetName());
+				SQL->CreateROOM(newCreatedRoom); // Create Room In DB
+				SQL->AddUser(newCreatedRoom.GetID(), client->GetName()); // Add User In DB
 				return "{\"status\": 333, \"argument\": \"Room Created!\"}";
 			}
 		}
@@ -126,7 +131,7 @@ std::string CreateMenuRequestHandler::RequestResult(json Request, int clientID, 
 	{
 		if (RoomsData->GetRoom(clientRoom.GetID()).GetAdminID() == client->GetID()) // If The User Who Leaved Is Admin
 		{
-			// SQL Delete Room
+			//SQL->DeleteROOM(clientRoom);
 			RoomsData->deleteRoom(clientRoom.GetID());
 			return "{\"status\": 404, \"argument\": \"Left Room!\"}";
 		}

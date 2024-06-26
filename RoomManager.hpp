@@ -223,7 +223,7 @@ inline Room RoomManager::GetRoom(int id)
 inline void RoomManager::UpdateRoomsList(std::vector<Room*> x)
 {
 	RoomsList = x;
-	std::cout << "HERE, Size: " << RoomsList.size() << std::endl;
+	std::cout << "HERE ALL ROOMS FROM DB, Count: " << RoomsList.size() << std::endl;
 	for (Room* a : RoomsList) // Find Room In RoomsList
 	{
 		std::cout << a->GetName() << std::endl;
@@ -294,7 +294,7 @@ inline void RoomManager::deleteRoom(int ID)
 		if (i->GetID() == ID)
 		{
 			RoomsList.erase(RoomsList.begin()+iterator);
-			return; // Проверь если не с инвалидил 
+			return;
 		}
 		iterator++;
 	}
@@ -308,7 +308,7 @@ inline void RoomManager::updateRoom(Room* room)
 		if (i->GetID() == room->GetID() && i->GetName() == room->GetName())
 		{
 			RoomsList[iterator] = room;
-			return; // Проверь если не с инвалидил 
+			return;
 		}
 		iterator++;
 	}
@@ -354,7 +354,7 @@ inline std::vector<Room*> RoomManager::getRooms()
 {
 	return RoomsList;
 }
-//void SetPointsRoom(int ID, User, int);
+
 inline void RoomManager::SetPointsRoom(int ID, User client, int Points)
 {
 	for (auto i : RoomsList) // Find Room In RoomsList

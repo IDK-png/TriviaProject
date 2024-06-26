@@ -242,11 +242,15 @@ void Server::RoomStatusSender(SOCKET clientSocket, Room CreatedRoom, std::atomic
 		}
 	}
 }
+// Handler that makes the Waiting Menu proccess for user(Start Game, Get User's In Lobby and etc)
 void Server::createMenuManager(SOCKET clientSocket, User client, Room CreatedRoom)
 {
 	std::atomic<bool> keepSendStatus(true);
+	// Flag Varaible For Status Sending(Send Room Status - True, Stop Sending Status - False)
 	std::future<void> StatusSending = std::async(std::launch::async, &Server::RoomStatusSender, this, clientSocket, CreatedRoom, &keepSendStatus);
+	// Launching Status Sending Function Asynchronous From This Thread
 	HandlerFactory* createMenuHandler = new CreateMenuRequestHandlerCreator();
+	// Calls A Creator For Login Proccess Requests Handler
 	try
 	{
 		while (socketStillConnected(clientSocket))
@@ -254,23 +258,26 @@ void Server::createMenuManager(SOCKET clientSocket, User client, Room CreatedRoo
 			if (keepSendStatus.load())
 			{
 				std::string request = ServerCommunicator::GetString(clientSocket);
-				std::cout << request << std::endl;
 				JsonRequestPacketDeserializer requestJson(request);
 				json request_json = requestJson.Deserializer();
+				// Get client's Request, and Deserialize JSON
 				if (request_json["status"] != 352)
-					// 352 -> Other Users Joins Started Game
+					// 352 -> Non admin users join started game
 				{
 					std::string response = createMenuHandler->FactoryMethod()->RequestResult(request_json, client.GetID(), CreatedRoom.GetID());
 					ServerCommunicator::SendString(clientSocket, response);
+					// Get Response From Handler
 					JsonRequestPacketDeserializer responseJson(response);
 					json response_json = responseJson.Deserializer();
 					if (response_json["status"] == 404)
+						// If user leaved the room then send to Menu handler
 					{
 						MenuManager(clientSocket, client);
 						break;
 					}
 					if (response_json["status"] == 400)
 					{
+						// If Admin Started The Game, Launch GameManager for current room async.
 						std::future<void> GameMechanic = std::async(std::launch::async, &Server::GameMake, this, CreatedRoom);
 						GameManager(clientSocket, client, CreatedRoom);
 						break;
@@ -303,21 +310,29 @@ void Server::createMenuManager(SOCKET clientSocket, User client, Room CreatedRoo
 void Server::GameStatusSender(SOCKET clientSocket, Room GameRoom, std::atomic<bool>* Flag)
 {
 	std::vector<std::string> currentQuestion = SQL->getQuestion(SQL->getCurrentQuestionID(GameRoom));
+	// Get Current Room Question,Answers
 	std::string currentTimeLeft = std::to_string(SQL->getTime(GameRoom));
+	// Get Current Time Of The Question(How much time left)
 	std::string roomInfo = currentQuestion[0] + "|" + currentQuestion[1] + "|" + currentTimeLeft;
 	ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 435, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
+	// Send Current Room Status, The Status Contains Information About Current Question,Answers and how much time left
 	while (Flag->load())
 	{
 		Room UpdatedRoom = Rooms->GetRoom(GameRoom.GetID());
+		// Get Updated Room
 		std::vector<std::string> UpdatedQuestion = SQL->getQuestion(SQL->getCurrentQuestionID(GameRoom));
+		// Get Current Room Question,Answers 
 		std::string UpdatedTimeLeft = std::to_string(SQL->getTime(GameRoom));
+		// Get Current Time Of The Question(How much time left)
 		if (currentTimeLeft != UpdatedTimeLeft)
+			// If Time Left been changed then send new status to client
 		{
 			currentTimeLeft = UpdatedTimeLeft;
 			currentQuestion = UpdatedQuestion;
 			roomInfo = currentQuestion[0] + "|" + currentQuestion[1] + "|" + currentTimeLeft;
 			ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 435, \"argument\": \"Status Update!|" + roomInfo + "\"}"));
 			if (SQL->getCurrentQuestionID(GameRoom) == 10 && SQL->getTime(GameRoom) == 1)
+				// End Game(If It's the last question and last second then end game)
 			{
 				ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 444, \"argument\": \"Game Finished!\"}"));
 				Flag->store(false); //
@@ -332,11 +347,14 @@ void Server::GameMake(Room GameRoom)
 	std::cout << "Room \"" + GameRoom.GetName() + "\" Launched Game!" << std::endl;
 	Rooms->startGame(GameRoom.GetID());
 	SQL->createGame(GameRoom);
+	// Creates Game
 	for (int i = 1; i <= 10; i++)
 	{
+		// Change Questions
 		SQL->setQuestion(GameRoom, i);
 		SQL->setTimer(GameRoom);
 	}
+	// Stop Game/Deletes Room
 	Rooms->stopGame(GameRoom.GetID());
 	SQL->closeGame(GameRoom);
 	SQL->DeleteROOM(GameRoom);
@@ -345,13 +363,18 @@ void Server::GameMake(Room GameRoom)
 void Server::GameManager(SOCKET clientSocket, User client, Room GameRoom)
 {
 	std::atomic<bool> keepSendStatus(true);
+	// Flag Varaible For Status Sending(Send Room Status - True, Stop Sending Status - False)
 	std::future<void> StatusSending = std::async(std::launch::async, &Server::GameStatusSender, this, clientSocket, GameRoom, &keepSendStatus);
+	// Launching Status Sending Function Asynchronous From This Thread
 	HandlerFactory* GameRequestHandler = new GameRequestHandlerCreator();
+	// Calls A Creator For Game Proccess Requests Handler
 	Rooms->SetPointsRoom(GameRoom.GetID(), client, 0);
-	int averageTime = 1;
 	std::vector<int> userStats = SQL->getUserStats(client);
+	// Get User Stats(Statistic Changes will be made here)
 	std::vector<int> userStatsBeforeChange = userStats;
-	userStats[3]++;
+	// Save User Stats Before Changes 
+	int averageTime = 1;
+	userStats[3]++; // Adds this game to statistics 
 	try
 	{
 		while (socketStillConnected(clientSocket))
@@ -359,28 +382,34 @@ void Server::GameManager(SOCKET clientSocket, User client, Room GameRoom)
 			std::string request = ServerCommunicator::GetString(clientSocket);
 			JsonRequestPacketDeserializer requestJson(request);
 			json request_json = requestJson.Deserializer();
+			// Get client's Request, and Deserialize JSON
 			if (request_json["status"] != 600)
+				// If it's not end game, then it just gets users answers and changes his statistics 
 			{
 				std::string response = GameRequestHandler->FactoryMethod()->RequestResult(request_json, client.GetID(), GameRoom.GetID());
 				ServerCommunicator::SendString(clientSocket, response);
 				JsonRequestPacketDeserializer responseJson(response);
 				json response_json = responseJson.Deserializer();
 				if (response_json["status"] == 502)
+					// If player answered right
 				{
 					averageTime = (averageTime + (GameRoom.GetTime() - SQL->getTime(GameRoom))) / 2;
 					userStats[0] = (userStats[0] + (GameRoom.GetTime() - SQL->getTime(GameRoom))) / 2;
-					userStats[1]++;
-					userStats[2]++;
+					// Calculates average time and changes it in users statistic
+					userStats[1]++; // Add 1 to right answered questions count 
+					userStats[2]++; // Add 1 to total questions 
 					Rooms->SetPointsRoom(GameRoom.GetID(), client, userStats[1] - userStatsBeforeChange[1]);
 					SQL->UpdateUsersStats(client, userStats);
 				}
 				if (response_json["status"] == 503)
+					// If player answered wrong
 				{
-					userStats[2]++;
+					userStats[2]++; // Add 1 to total questions 
 					SQL->UpdateUsersStats(client, userStats);
 				}
 			}
 			else
+				// If the game ended and the user asked for results 
 			{
 				std::string ResultsInfo = std::to_string(userStats[1] - userStatsBeforeChange[1]) + "|" + std::to_string(averageTime) + "|";
 				std::vector<User*> xxx = Rooms->GetPointsRoom(GameRoom);
@@ -389,7 +418,9 @@ void Server::GameManager(SOCKET clientSocket, User client, Room GameRoom)
 					ResultsInfo = ResultsInfo + i->GetName() + " ";
 				}
 				ServerCommunicator::SendString(clientSocket, std::string("{\"status\": 601, \"argument\": \"" + ResultsInfo + "\"}"));
+				// Send him the results, right answered questions count, average answer time and the winners
 				MenuManager(clientSocket, client);
+				// Then send him to Menu Handler
 			}
 		}
 		std::cout << socketStillConnected(clientSocket) << std::endl;
