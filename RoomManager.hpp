@@ -2,6 +2,9 @@
 #define ROOMMANAGER_HPP
 #include "DatabaseAccess.h"
 #include "ServerCommunicator.hpp"
+#include <algorithm>
+#include <map>
+
 class User
 {
 public:
@@ -27,9 +30,12 @@ public:
 	std::string GetValueForDatabase();
 	std::string GetUsers();
 	void StartGame();
+	void StopGame();
 	int GetAdminID();
 	void UserAdd(User*);
-	void RemoveUser(User*);
+	void RemoveUser(User*); 
+	void SetPoints(User, int);
+	std::vector<User*> SortedVecUserPoints();
 private:
 	int ID; // Room Number
 	std::string NAME; // Room Name
@@ -38,6 +44,7 @@ private:
 	bool ACTIVE;
 	bool STATE; // false(0)-Waiting For Players, true(1)-In Game
 	std::vector<User*> UserList; 
+	std::vector<int> UserPoints;
 };
 
 class RoomManager
@@ -54,9 +61,13 @@ public:
 	void updateRoom(Room*);
 	std::vector<Room*> getRooms();
 	void startGame(int ID);
+	void stopGame(int ID);
+	void SetPointsRoom(int, User, int);
+	std::vector<User*> GetPointsRoom(Room);
 private:
 	std::vector<Room*> RoomsList;
 };
+
 
 inline User::User(std::string Name, int Id) : NAME(Name), ID(Id)
 {
@@ -79,6 +90,7 @@ inline Room::Room(int id, std::string name, int max, int time) : ID(id), NAME(na
 inline void Room::UserAdd(User* usr)
 {
 	UserList.push_back(usr);
+	UserPoints.push_back(0);
 }
 
 inline void Room::RemoveUser(User* x)
@@ -89,6 +101,7 @@ inline void Room::RemoveUser(User* x)
 		if (i->GetID() == x->GetID())
 		{
 			UserList.erase(UserList.begin() + iter);
+			UserPoints.erase(UserPoints.begin() + iter);
 		}
 		iter++;
 	}
@@ -159,6 +172,39 @@ inline void Room::StartGame()
 	this->STATE = 1;
 }
 
+inline void Room::StopGame()
+{
+	this->STATE = 0;
+}
+
+inline void Room::SetPoints(User client, int Points)
+{
+	int iter = 0;
+	for (auto i : UserList)
+	{
+		if (i->GetID() == client.GetID())
+		{
+			UserPoints[iter] = Points;
+		}
+		iter++;
+	}
+}
+
+inline std::vector<User*> Room::SortedVecUserPoints() 
+{
+	std::multimap< int, User*> nameScoreMultimap;
+	for (size_t i = 0; i < UserList.size(); ++i) {
+		nameScoreMultimap.insert({ UserPoints[i] , UserList[i] });
+	}
+
+	std::vector<User*> sortedNames;
+	for (const auto& pair : nameScoreMultimap) {
+		sortedNames.push_back(pair.second);
+		std::cout << pair.second->GetName() << std::endl;
+	}
+
+	return sortedNames;
+}
 inline RoomManager::RoomManager() : RoomsList()
 {
 
@@ -166,7 +212,7 @@ inline RoomManager::RoomManager() : RoomsList()
 
 inline Room RoomManager::GetRoom(int id)
 {
-	for (auto i : RoomsList)
+	for (auto i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetID() == id)
 			return *i;
@@ -178,7 +224,7 @@ inline void RoomManager::UpdateRoomsList(std::vector<Room*> x)
 {
 	RoomsList = x;
 	std::cout << "HERE, Size: " << RoomsList.size() << std::endl;
-	for (Room* a : RoomsList)
+	for (Room* a : RoomsList) // Find Room In RoomsList
 	{
 		std::cout << a->GetName() << std::endl;
 	}
@@ -186,7 +232,7 @@ inline void RoomManager::UpdateRoomsList(std::vector<Room*> x)
 
 inline bool RoomManager::AddUserToRoom(int id, User userToAdd)
 {
-	for (Room* i : RoomsList)
+	for (Room* i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetID() == id)
 		{
@@ -203,7 +249,7 @@ inline bool RoomManager::AddUserToRoom(int id, User userToAdd)
 
 inline bool RoomManager::RemoveUserFromRoom(int id, User userToRemove)
 {
-	for (Room* i : RoomsList)
+	for (Room* i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetID() == id)
 		{
@@ -229,7 +275,7 @@ inline Room RoomManager::createRoom(int id, std::string name, int max, int time)
 
 inline bool RoomManager::getRoomState(std::string Name)
 {
-	for (Room* i : RoomsList)
+	for (Room* i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetName().compare(Name))
 		{
@@ -243,7 +289,7 @@ inline bool RoomManager::getRoomState(std::string Name)
 inline void RoomManager::deleteRoom(int ID)
 {
 	int iterator = 0;
-	for (auto i : RoomsList)
+	for (auto i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetID() == ID)
 		{
@@ -257,7 +303,7 @@ inline void RoomManager::deleteRoom(int ID)
 inline void RoomManager::updateRoom(Room* room)
 {
 	int iterator = 0;
-	for (auto i : RoomsList)
+	for (auto i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetID() == room->GetID() && i->GetName() == room->GetName())
 		{
@@ -270,21 +316,56 @@ inline void RoomManager::updateRoom(Room* room)
 
 inline void RoomManager::startGame(int ID) // Room(int id, std::string name, int max, int time);
 {
-	int iterator = 0;
-	for (auto i : RoomsList)
+	for (auto i : RoomsList) // Find Room In RoomsList
 	{
 		if (i->GetID() == ID)
 		{
 			i->StartGame();
-			return; // Проверь если не с инвалидил 
+			return; 
 		}
-		iterator++;
 	}
 }
 
+inline void RoomManager::stopGame(int ID) // Room(int id, std::string name, int max, int time);
+{
+	for (auto i : RoomsList) // Find Room In RoomsList
+	{
+		if (i->GetID() == ID)
+		{
+			i->StopGame();
+			return;
+		}
+	}
+}
+
+inline std::vector<User*> RoomManager::GetPointsRoom(Room GameRoom)
+{
+	for (auto i : RoomsList) // Find Room In RoomsList
+	{
+		if (i->GetID() == GameRoom.GetID())
+		{
+			return i->SortedVecUserPoints();
+		}
+	}
+    return std::vector<User*>();
+}
 
 inline std::vector<Room*> RoomManager::getRooms()
 {
 	return RoomsList;
 }
+//void SetPointsRoom(int ID, User, int);
+inline void RoomManager::SetPointsRoom(int ID, User client, int Points)
+{
+	for (auto i : RoomsList) // Find Room In RoomsList
+	{
+		if (i->GetID() == ID)
+		{
+			i->SetPoints(client, Points);
+			i->SortedVecUserPoints();
+			return;
+		}
+	}
+}
+
 #endif // ROOMMANAGER_HPP

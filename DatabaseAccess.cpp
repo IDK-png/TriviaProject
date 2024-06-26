@@ -153,7 +153,9 @@ User DatabaseAccess::CreateUSER(std::string NAME, std::string PASSWORD)
 	User Client = User(NAME, IdCheck("USERS", 0));
 	std::string name = '"' + Client.GetName() + '"';
 	std::string USERSquery = "INSERT INTO USERS (ID, NAME, PASSWORD) VALUES (" + std::to_string(Client.GetID()) + ',' + name + ',' + '"' + PASSWORD + '"' + ");";
+	std::string STATSquery = "INSERT INTO STATS (ID, NAME, AVG_TIME, CORRECT, TOTAL, GAMES) VALUES (" + std::to_string(Client.GetID()) + ',' + name + ',' + "0,0,0,0);";
 	sendToSql(USERSquery);
+	sendToSql(STATSquery);
 	return Client;
 }
 
@@ -181,6 +183,27 @@ void DatabaseAccess::AddUser(int id, std::string user)
 	sendToSql(RoomsQuery);
 }
 
+std::vector<int> DatabaseAccess::getUserStats(User client)
+{
+	std::string AverageTimeQuery = "SELECT AVG_TIME FROM STATS WHERE ID = " + std::to_string(client.GetID());
+	std::string CorrectQuery = "SELECT CORRECT FROM STATS WHERE ID = " + std::to_string(client.GetID());
+	std::string TotalQuery = "SELECT TOTAL FROM STATS WHERE ID = " + std::to_string(client.GetID());
+	std::string GamesQuery = "SELECT GAMES FROM STATS WHERE ID = " + std::to_string(client.GetID());
+	std::vector<int> ReturnVector;
+	ReturnVector.push_back(std::stoi(getFromSql(AverageTimeQuery)));
+	ReturnVector.push_back(std::stoi(getFromSql(CorrectQuery)));
+	ReturnVector.push_back(std::stoi(getFromSql(TotalQuery)));
+	ReturnVector.push_back(std::stoi(getFromSql(GamesQuery)));
+	return ReturnVector;
+}
+
+void DatabaseAccess::UpdateUsersStats(User client, std::vector<int> updatedVector)
+{
+	std::string StatsQuery = "UPDATE STATS SET AVG_TIME=" + std::to_string(updatedVector[0]) + ", CORRECT=" + std::to_string(updatedVector[1]) +", TOTAL=" + std::to_string(updatedVector[2]) +", GAMES=" + std::to_string(updatedVector[3]) + " WHERE ID=" + std::to_string(client.GetID()) + ";";
+	std::cout << StatsQuery << std::endl;
+	sendToSql(StatsQuery);
+}
+
 std::vector<std::string> DatabaseAccess::getQuestion(int id)
 {
 	std::string QuestionQuery = "SELECT QUESTION FROM QUESTIONS WHERE ID = " + std::to_string(id);
@@ -197,6 +220,12 @@ void DatabaseAccess::createGame(Room GameRoom)
 {
 	std::string RoomsQuery = "INSERT INTO GAMES (ID, CURRENT_QUESTION_ID, TIME_LEFT, QUESTIONS_ANSWERD, USERS_ANSWERD) VALUES (" + std::to_string(GameRoom.GetID()) + ",0,0,0,0" + ");";
 	sendToSql(RoomsQuery);
+}
+
+void DatabaseAccess::closeGame(Room GameRoom)
+{
+	std::string CloseQuery = "DELETE FROM GAMES WHERE ID = " + std::to_string(GameRoom.GetID()) + ";";
+	sendToSql(CloseQuery);
 }
 
 void DatabaseAccess::setQuestion(Room GameRoom, int QuestionID)
@@ -231,7 +260,14 @@ int DatabaseAccess::answerCount(Room GameRoom)
 int DatabaseAccess::getCurrentQuestionID(Room GameRoom)
 {
 	std::string CurrentQuestionQuery = "SELECT CURRENT_QUESTION_ID FROM GAMES WHERE ID = " + std::to_string(GameRoom.GetID());
-	return stoi(getFromSql(CurrentQuestionQuery));
+	try
+	{
+		return stoi(getFromSql(CurrentQuestionQuery));
+	}
+	catch (const std::exception& e)
+	{
+		return -1;
+	}
 }
 
 void DatabaseAccess::DeleteUser(Room ROOM, std::string user)

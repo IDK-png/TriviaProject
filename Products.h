@@ -47,3 +47,8 @@ class CreateMenuRequestHandler : public RequestHandlerFactory {
 public:
     std::string RequestResult(json Request, int clientID, int roomID) override;
 };
+
+class GameRequestHandler : public RequestHandlerFactory {
+public:
+    std::string RequestResult(json Request, int clientID, int roomID) override;
+};

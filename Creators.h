@@ -18,3 +18,9 @@ class CreateMenuRequestHandlerCreator : public HandlerFactory
 public:
     RequestHandlerFactory* FactoryMethod() const override;
 };
+
+class GameRequestHandlerCreator : public HandlerFactory
+{
+public:
+    RequestHandlerFactory* FactoryMethod() const override;
+};

@@ -150,3 +150,24 @@ std::string CreateMenuRequestHandler::RequestResult(json Request, int clientID, 
 		}
 	}
 }
+
+std::string GameRequestHandler::RequestResult(json Request, int clientID, int roomID)
+{
+	DataManage* Data = DataManage::getInstance();
+	RoomManager* RoomsData = Data->getRooms();
+	DatabaseAccess* SQL = Data->getDatabase();
+	User* client = SQL->GetUSER(clientID);
+	Room clientRoom = RoomsData->GetRoom(roomID);
+	if (Request["status"] == 501)
+	{
+		std::vector <std::string> currentQuestion = SQL->getQuestion(SQL->getCurrentQuestionID(clientRoom));
+		if (std::stoi(currentQuestion[2]) == std::stoi(std::string(Request["argument"])))
+		{
+			return "{\"status\": 502, \"argument\": \"Right Answer!\"}";
+		}
+		else
+		{
+			return "{\"status\": 503, \"argument\": \"Wrong Answer!\"}";
+		}
+	}
+}

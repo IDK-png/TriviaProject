@@ -25,10 +25,15 @@ public:
 	bool CheckLogin(std::string NAME, std::string PASSWORD);
 	User CreateUSER(std::string NAME, std::string PASSWORD);
 	void AddUser(int, std::string);
+	//Stats Managment
+	std::vector<int> getUserStats(User);
+	void UpdateUsersStats(User, std::vector<int>);
+	//void Create
 	//Question Managment
 	std::vector <std::string> getQuestion(int id);
 	//Game Managment
 	void createGame(Room);
+	void closeGame(Room);
 	void setQuestion(Room, int);
 	bool setTimer(Room);
 	int getTime(Room);

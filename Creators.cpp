@@ -14,3 +14,8 @@ RequestHandlerFactory* CreateMenuRequestHandlerCreator::FactoryMethod() const
 {
 	return new CreateMenuRequestHandler();
 }
+
+RequestHandlerFactory* GameRequestHandlerCreator::FactoryMethod() const
+{
+	return new GameRequestHandler();
+}
